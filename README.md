@@ -1,3 +1,5 @@
+<!-- LTeX:enabled=false -->
+
 # moabb_model_optimization
 
 ## Installation

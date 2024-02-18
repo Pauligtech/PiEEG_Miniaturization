@@ -46,7 +46,8 @@ class FatigueMI(BaseDataset):
         super().__init__(
             subjects=list(range(1, 33)),
             sessions_per_subject=1,
-            events=dict(left_hand=1, right_hand=2, unlabelled=3),
+            events=dict(left_hand=1, right_hand=2),
+            # events=dict(left_hand=1, right_hand=2, unlabelled=3),
             code="FatigueMI",
             interval=[0, 2],
             paradigm="imagery",

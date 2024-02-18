@@ -1,0 +1,2 @@
+,score,time,samples,subject,session,channels,n_sessions,dataset,pipeline
+0,0.5165289,4.2804055,108.0,1,0,20,1,FatigueMI,Keras_DeepConvNet_Trained_Pruned

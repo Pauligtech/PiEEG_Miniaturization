@@ -281,7 +281,7 @@ class ModelOptimizer:
             "trial_data",
             {
                 "channels_selected": np.asarray(self.all_channels)[channels_idx],
-                # "history": history,
+                "history": history.history,
                 "model": model.to_json(),
                 "weights": model.get_weights(),
                 "train_accuracy": history.history["accuracy"],
@@ -294,15 +294,17 @@ class ModelOptimizer:
         )
 
         print("\n")
-        val_acc_nd_array = np.asarray(history.history["val_accuracy"])
+        val_acc_nd_array = np.asarray(
+            history.history["val_accuracy"][-(max_epochs // 2) :]
+        )
         max_val_acc = val_acc_nd_array.max()
         # train_acc_for_max_val_acc = history.history["accuracy"][
         #     val_acc_nd_array.argmax()
         # ]
         # max_train_acc = np.asarray(history.history["accuracy"]).max()
 
-        cost = np.abs(1 - max_val_acc)
-        # cost = (1 - max_val_acc) ** 2
+        # cost = np.abs(1 - max_val_acc)
+        cost = (1 - max_val_acc) ** 2
         # if max_val_acc > train_acc_for_max_val_acc:
         #     cost += 0.25
 
@@ -495,11 +497,15 @@ class ModelOptimizer:
         return trial_metrics_df
 
     def clean_up(
-        self, subjects=None, best_study_id=None, type="remove_all_but_best_trial_data"
+        self,
+        subjects=None,
+        best_study_id=None,
+        best_trial_id=None,
+        action="remove_all_but_best_trial_data",
     ):
         subjects = subjects if subjects != None else self.subjects
         subjects_glob_str = "[[]" + str(subjects).strip("[]") + "[]]"
-        if type == "remove_all_but_best_trial_data":
+        if action == "remove_all_but_best_trial_data":
             if best_study_id == None:
                 subjects_best_trials = glob.glob(
                     f"./temp/{subjects_glob_str}/*/model/study_best_trial.npy"
@@ -510,14 +516,25 @@ class ModelOptimizer:
                         f"Found {len(subjects_best_trials)} best trials for subjects: {subjects}"
                     )
                 best_study_id = subjects_best_trials[0].split("/")[-3]
+            if best_trial_id == None:
                 best_trial = np.load(
                     f"./temp/{subjects}/{best_study_id}/model/study_best_trial.npy",
                     allow_pickle=True,
                 )
                 best_trial_id = best_trial.item().number
-                # Remove all test_data_[trial_id].npy files except for the best_trial_id
-                for file in glob.glob(
-                    f"./temp/{subjects_glob_str}/{best_study_id}/data/test_data_*.npy"
-                ):
-                    if int(file.split("_")[-1].split(".")[0]) != best_trial_id:
-                        os.remove(file)
+            else:
+                best_trial = (
+                    np.load(
+                        f"./temp/{subjects}/{best_study_id}/model/study_trials.npy",
+                        allow_pickle=True,
+                    )
+                    .item()
+                    .trials[best_trial_id]
+                )
+                best_trial_id = best_trial.number
+            # Remove all test_data_[trial_id].npy files except for the best_trial_id
+            for file in glob.glob(
+                f"./temp/{subjects_glob_str}/{best_study_id}/data/test_data_*.npy"
+            ):
+                if int(file.split("_")[-1].split(".")[0]) != best_trial_id:
+                    os.remove(file)

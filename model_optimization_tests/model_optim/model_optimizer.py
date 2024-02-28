@@ -493,3 +493,31 @@ class ModelOptimizer:
         trial_metrics_df = pd.DataFrame(trial_metrics_dict)
 
         return trial_metrics_df
+
+    def clean_up(
+        self, subjects=None, best_study_id=None, type="remove_all_but_best_trial_data"
+    ):
+        subjects = subjects if subjects != None else self.subjects
+        subjects_glob_str = "[[]" + str(subjects).strip("[]") + "[]]"
+        if type == "remove_all_but_best_trial_data":
+            if best_study_id == None:
+                subjects_best_trials = glob.glob(
+                    f"./temp/{subjects_glob_str}/*/model/study_best_trial.npy"
+                )
+                rpprint(subjects_best_trials)
+                if len(subjects_best_trials) > 0:
+                    rprint(
+                        f"Found {len(subjects_best_trials)} best trials for subjects: {subjects}"
+                    )
+                best_study_id = subjects_best_trials[0].split("/")[-3]
+                best_trial = np.load(
+                    f"./temp/{subjects}/{best_study_id}/model/study_best_trial.npy",
+                    allow_pickle=True,
+                )
+                best_trial_id = best_trial.item().number
+                # Remove all test_data_[trial_id].npy files except for the best_trial_id
+                for file in glob.glob(
+                    f"./temp/{subjects_glob_str}/{best_study_id}/data/test_data_*.npy"
+                ):
+                    if int(file.split("_")[-1].split(".")[0]) != best_trial_id:
+                        os.remove(file)

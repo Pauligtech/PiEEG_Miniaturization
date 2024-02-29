@@ -250,18 +250,18 @@ class ModelOptimizer:
             validation_split=0.2,
             shuffle=True,
             callbacks=[
-                # keras.callbacks.EarlyStopping(
-                #     monitor="val_loss", patience=75, restore_best_weights=True
-                # ),
-                # keras.callbacks.ReduceLROnPlateau(
-                #     monitor="val_loss", patience=75, factor=0.5
-                # ),
                 keras.callbacks.EarlyStopping(
-                    monitor="val_loss", patience=10, restore_best_weights=True
+                    monitor="val_loss", patience=75, restore_best_weights=True
                 ),
                 keras.callbacks.ReduceLROnPlateau(
-                    monitor="val_loss", patience=5, factor=0.1
+                    monitor="val_loss", patience=75, factor=0.5
                 ),
+                # keras.callbacks.EarlyStopping(
+                #     monitor="val_loss", patience=10, restore_best_weights=True
+                # ),
+                # keras.callbacks.ReduceLROnPlateau(
+                #     monitor="val_loss", patience=5, factor=0.1
+                # ),
             ],
         )
 
@@ -282,6 +282,7 @@ class ModelOptimizer:
             allow_pickle=True,
         )
 
+        test_eval = model.evaluate(X_test, y_test, batch_size=_BATCH_SIZE)
         trial.set_user_attr(
             "trial_data",
             {
@@ -291,9 +292,10 @@ class ModelOptimizer:
                 "weights": model.get_weights(),
                 "train_accuracy": history.history["accuracy"],
                 "val_accuracy": history.history["val_accuracy"],
-                "test_accuracy": model.evaluate(X_test, y_test, batch_size=_BATCH_SIZE)[
-                    1
-                ],
+                "test_accuracy": test_eval[1],
+                "train_loss": history.history["loss"],
+                "val_loss": history.history["val_loss"],
+                "test_loss": test_eval[0],
                 "data_path": f"./temp/{subjects}/{study_id}/data/test_data_{trial.number}.npy",
             },
         )
@@ -478,9 +480,15 @@ class ModelOptimizer:
             "train_acc": [],
             "test_acc": [],
             "val_acc": [],
-            "train_val_diff": [],
+            "train_val_acc_diff": [],
+            "train_loss": [],
+            "val_loss": [],
+            "train_val_loss_diff": [],
+            "test_loss": [],
             "scores": [],
             "channels_selected": [],
+            "sfreq": [],
+            "batch_size": [],
         }
         for i, trial in enumerate(study.trials_dataframe().itertuples()):
             trial_user_attrs = trial.user_attrs_trial_data
@@ -495,11 +503,49 @@ class ModelOptimizer:
             trial_metrics_dict["channels_selected"].append(
                 trial_user_attrs["channels_selected"]
             )
-            trial_metrics_dict["train_val_diff"].append(
+            trial_metrics_dict["train_val_acc_diff"].append(
                 abs(
                     np.max(trial_user_attrs["train_accuracy"])
                     - np.max(trial_user_attrs["val_accuracy"])
                 )
+            )
+            (
+                trial_metrics_dict["train_loss"].append(
+                    np.min(trial_user_attrs["train_loss"])
+                    if "train_loss" in trial_user_attrs
+                    else None
+                )
+            )
+            (
+                trial_metrics_dict["val_loss"].append(
+                    np.min(trial_user_attrs["val_loss"])
+                    if "val_loss" in trial_user_attrs
+                    else None
+                )
+            )
+            (
+                trial_metrics_dict["train_val_loss_diff"].append(
+                    abs(
+                        np.min(trial_user_attrs["train_loss"])
+                        - np.min(trial_user_attrs["val_loss"])
+                    )
+                    if "train_loss" in trial_user_attrs
+                    and "val_loss" in trial_user_attrs
+                    else None
+                )
+            )
+            (
+                trial_metrics_dict["test_loss"].append(
+                    np.min(trial_user_attrs["test_loss"])
+                    if "test_loss" in trial_user_attrs
+                    else None
+                )
+            )
+            trial_metrics_dict["sfreq"].append(
+                trial.params_sfreq if trial.params_sfreq is not None else None
+            )
+            trial_metrics_dict["batch_size"].append(
+                trial.params_batch_size if trial.params_batch_size is not None else None
             )
         trial_metrics_df = pd.DataFrame(trial_metrics_dict)
 

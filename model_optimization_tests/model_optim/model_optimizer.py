@@ -318,7 +318,7 @@ class ModelOptimizer:
         # if max_val_acc > train_acc_for_max_val_acc:
         #     cost += 0.25
 
-        L1 = 1e-2 * (len(channels_idx))
+        L1 = 1e-1 * (len(channels_idx) / len(all_channels))
         # L1 = 5e-5 * (len(channels_idx))
         cost += L1
 
@@ -542,10 +542,10 @@ class ModelOptimizer:
                 )
             )
             trial_metrics_dict["sfreq"].append(
-                trial.params_sfreq if trial.params_sfreq is not None else None
+                trial.params_sfreq if hasattr(trial, "params_sfreq") else None
             )
             trial_metrics_dict["batch_size"].append(
-                trial.params_batch_size if trial.params_batch_size is not None else None
+                trial.params_batch_size if hasattr(trial, "params_batch_size") else None
             )
         trial_metrics_df = pd.DataFrame(trial_metrics_dict)
 

@@ -250,18 +250,18 @@ class ModelOptimizer:
             validation_split=0.2,
             shuffle=True,
             callbacks=[
-                keras.callbacks.EarlyStopping(
-                    monitor="val_loss", patience=75, restore_best_weights=True
-                ),
-                keras.callbacks.ReduceLROnPlateau(
-                    monitor="val_loss", patience=75, factor=0.5
-                ),
                 # keras.callbacks.EarlyStopping(
-                #     monitor="val_loss", patience=10, restore_best_weights=True
+                #     monitor="val_loss", patience=75, restore_best_weights=True
                 # ),
                 # keras.callbacks.ReduceLROnPlateau(
-                #     monitor="val_loss", patience=5, factor=0.1
+                #     monitor="val_loss", patience=75, factor=0.5
                 # ),
+                keras.callbacks.EarlyStopping(
+                    monitor="val_loss", patience=10, restore_best_weights=True
+                ),
+                keras.callbacks.ReduceLROnPlateau(
+                    monitor="val_loss", patience=5, factor=0.1
+                ),
             ],
         )
 
@@ -308,14 +308,15 @@ class ModelOptimizer:
         # ]
         # max_train_acc = np.asarray(history.history["accuracy"]).max()
 
-        cost = np.min(history.history["val_loss"][-20:])
+        cost = np.min(history.history["val_loss"][-5:])
         # cost = np.min(history.history["val_loss"][-(max_epochs // 2) :])
+        # cost = np.min(history.history["val_loss"][-20:])  # + (1 - max_val_acc) ** 2
         # cost = np.abs(1 - max_val_acc)
         # cost = (1 - max_val_acc) ** 2
         # if max_val_acc > train_acc_for_max_val_acc:
         #     cost += 0.25
 
-        L1 = 1e-3 * (len(channels_idx))
+        L1 = 1e-2 * (len(channels_idx))
         # L1 = 5e-5 * (len(channels_idx))
         cost += L1
 

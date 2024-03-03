@@ -22,11 +22,12 @@ from itertools import chain
 from functools import partial
 
 # JAX + Keras
-os.environ["KERAS_BACKEND"] = "jax"
-os.environ["TF_USE_LEGACY_KERAS"] = "0"
-import jax
-import jax.numpy as jnp
-import keras
+# os.environ["KERAS_BACKEND"] = "jax"
+# os.environ["TF_USE_LEGACY_KERAS"] = "0"
+# import jax
+# import jax.numpy as jnp
+import tensorflow as tf
+from tensorflow import keras
 from keras.models import Model
 from keras.layers import Dense, Activation, Permute, Dropout
 from keras.layers import (
@@ -106,7 +107,7 @@ class ModelOptimizer:
             )
 
         self.SKLRNG = 42
-        self.RNG = jax.random.PRNGKey(self.SKLRNG)
+        # self.RNG = jax.random.PRNGKey(self.SKLRNG)
 
     def get_subjects(self):
         return self.dataset.subject_list
@@ -250,18 +251,18 @@ class ModelOptimizer:
             validation_split=0.2,
             shuffle=True,
             callbacks=[
-                keras.callbacks.EarlyStopping(
-                    monitor="val_loss", patience=75, restore_best_weights=True
-                ),
-                keras.callbacks.ReduceLROnPlateau(
-                    monitor="val_loss", patience=75, factor=0.5
-                ),
                 # keras.callbacks.EarlyStopping(
-                #     monitor="val_loss", patience=10, restore_best_weights=True
+                #     monitor="val_loss", patience=75, restore_best_weights=True
                 # ),
                 # keras.callbacks.ReduceLROnPlateau(
-                #     monitor="val_loss", patience=5, factor=0.1
+                #     monitor="val_loss", patience=75, factor=0.5
                 # ),
+                keras.callbacks.EarlyStopping(
+                    monitor="val_loss", patience=10, restore_best_weights=True
+                ),
+                keras.callbacks.ReduceLROnPlateau(
+                    monitor="val_loss", patience=3, factor=0.1
+                ),
             ],
         )
 
@@ -272,21 +273,24 @@ class ModelOptimizer:
         # history.history["val_accuracy"] = history.history["val_sparse_categorical_accuracy"]
 
         # Save X_test, y_test to ./temp/{subject}/{study_id}/data
-        test_data = {
-            "X_test": X_test,
-            "y_test": y_test,
-        }
-        np.save(
-            f"./temp/{subjects if not using_all_subjects else '[]'}/{study_id}/data/test_data_{trial.number}.npy",
-            test_data,
-            allow_pickle=True,
-        )
+        # test_data = {
+        #     "X_test": X_test,
+        #     "y_test": y_test,
+        # }
+        # np.save(
+        #     f"./temp/{subjects if not using_all_subjects else '[]'}/{study_id}/data/test_data_{trial.number}.npy",
+        #     test_data,
+        #     allow_pickle=True,
+        # )
 
         test_eval = model.evaluate(X_test, y_test, batch_size=_BATCH_SIZE)
         trial.set_user_attr(
             "trial_data",
             {
+                "subjects": subjects,
+                "sklearn_rng": self.SKLRNG,
                 "channels_selected": np.asarray(self.all_channels)[channels_idx],
+                "channels_selected_idx": channels_idx,
                 "history": history.history,
                 "model": model.to_json(),
                 "weights": model.get_weights(),
@@ -296,21 +300,23 @@ class ModelOptimizer:
                 "train_loss": history.history["loss"],
                 "val_loss": history.history["val_loss"],
                 "test_loss": test_eval[0],
-                "data_path": f"./temp/{subjects}/{study_id}/data/test_data_{trial.number}.npy",
+                "data_path": f"./temp/{subjects}/{study_id}/data/",
             },
         )
 
         print("\n")
-        # val_acc_nd_array = np.asarray(
-        #     history.history["val_accuracy"][-(max_epochs // 2) :]
-        # )
-        # max_val_acc = val_acc_nd_array.max()
+        val_acc_nd_array = np.asarray(
+            history.history["val_accuracy"]
+            # history.history["val_accuracy"][-(max_epochs // 2) :]
+        )
+        max_val_acc = val_acc_nd_array.max()
         # train_acc_for_max_val_acc = history.history["accuracy"][
         #     val_acc_nd_array.argmax()
         # ]
         # max_train_acc = np.asarray(history.history["accuracy"]).max()
 
-        cost = np.min(history.history["val_loss"][-5:])
+        cost = np.abs(1 - max_val_acc)
+        # cost = np.min(history.history["val_loss"][-5:]) + np.abs(1 - max_val_acc)
         # cost = np.min(history.history["val_loss"][-(max_epochs // 2) :])
         # cost = np.min(history.history["val_loss"][-20:])  # + (1 - max_val_acc) ** 2
         # cost = np.abs(1 - max_val_acc)
@@ -318,8 +324,8 @@ class ModelOptimizer:
         # if max_val_acc > train_acc_for_max_val_acc:
         #     cost += 0.25
 
-        L1 = 1e-1 * (len(channels_idx) / len(all_channels))
-        # L1 = 5e-5 * (len(channels_idx))
+        # L1 = 1e-2 * (len(channels_idx) / len(all_channels))
+        L1 = 5e-5 * (len(channels_idx))
         cost += L1
 
         # if not (0.75 <= train_acc_for_max_val_acc <= 1.00):

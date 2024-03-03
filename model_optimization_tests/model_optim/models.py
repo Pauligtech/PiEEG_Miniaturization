@@ -7,11 +7,13 @@ from itertools import chain
 from functools import partial
 
 # JAX + Keras
-os.environ["KERAS_BACKEND"] = "jax"
-os.environ["TF_USE_LEGACY_KERAS"] = "0"
-import jax
-import jax.numpy as jnp
-import keras
+# os.environ["KERAS_BACKEND"] = "jax"
+# os.environ["TF_USE_LEGACY_KERAS"] = "0"
+# import jax
+# import jax.numpy as jnp
+# import keras
+import tensorflow as tf
+from tensorflow import keras
 from keras.models import Model
 from keras.layers import Dense, Activation, Permute, Dropout
 from keras.layers import (
@@ -39,11 +41,11 @@ NUM_SAMPLES = None
 
 # region Helper funcs
 def shallow_conv_net_square_layer(x):
-    return jnp.square(x)
+    return tf.math.square(x)
 
 
 def shallow_conv_net_log_layer(x):
-    return jnp.log(jnp.clip(x, 1e-7, 10000))
+    return tf.math.log(tf.clip_by_value(x, 1e-7, 10000))
 
 
 CUSTOM_OBJECTS = {

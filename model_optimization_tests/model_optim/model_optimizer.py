@@ -65,6 +65,7 @@ from .models import (
     lstm_cnn_net,
     lstm_cnn_net_v2,
 )
+from .callbacks import GetBest
 
 
 class ModelOptimizer:
@@ -239,7 +240,7 @@ class ModelOptimizer:
         model = model_fn(**model_params)
         model.compile(
             loss="sparse_categorical_crossentropy",
-            optimizer="rmsprop",
+            optimizer="adam",
             metrics=[keras.metrics.SparseCategoricalAccuracy(name="accuracy")],
         )
 
@@ -251,18 +252,21 @@ class ModelOptimizer:
             validation_split=0.2,
             shuffle=True,
             callbacks=[
-                # keras.callbacks.EarlyStopping(
-                #     monitor="val_loss", patience=75, restore_best_weights=True
-                # ),
-                # keras.callbacks.ReduceLROnPlateau(
-                #     monitor="val_loss", patience=75, factor=0.5
-                # ),
+                # GetBest(monitor="val_accuracy", verbose=1, mode="max"),
                 keras.callbacks.EarlyStopping(
-                    monitor="val_loss", patience=10, restore_best_weights=True
+                    monitor="val_loss", patience=75, restore_best_weights=True
                 ),
                 keras.callbacks.ReduceLROnPlateau(
-                    monitor="val_loss", patience=3, factor=0.1
+                    monitor="val_loss", patience=75, factor=0.5
                 ),
+                # keras.callbacks.EarlyStopping(
+                #     monitor="val_loss", patience=10, restore_best_weights=True
+                # ),
+                # keras.callbacks.ReduceLROnPlateau(
+                #     monitor="val_loss",
+                #     patience=5,
+                #     factor=0.1,
+                # ),
             ],
         )
 
@@ -310,26 +314,36 @@ class ModelOptimizer:
             # history.history["val_accuracy"][-(max_epochs // 2) :]
         )
         max_val_acc = val_acc_nd_array.max()
-        # train_acc_for_max_val_acc = history.history["accuracy"][
-        #     val_acc_nd_array.argmax()
-        # ]
-        # max_train_acc = np.asarray(history.history["accuracy"]).max()
+        train_acc_for_max_val_acc = history.history["accuracy"][
+            val_acc_nd_array.argmax()
+        ]
+        # # max_train_acc = np.asarray(history.history["accuracy"]).max()
 
-        cost = np.abs(1 - max_val_acc)
+        # # cost = np.min(history.history["val_loss"]) + (1 - max_val_acc) ** 2
+        # # cost = np.abs(1 - max_val_acc)
         # cost = np.min(history.history["val_loss"][-5:]) + np.abs(1 - max_val_acc)
-        # cost = np.min(history.history["val_loss"][-(max_epochs // 2) :])
-        # cost = np.min(history.history["val_loss"][-20:])  # + (1 - max_val_acc) ** 2
-        # cost = np.abs(1 - max_val_acc)
-        # cost = (1 - max_val_acc) ** 2
+        # # cost = np.min(history.history["val_loss"][-(max_epochs // 2) :])
+        # # cost = np.min(history.history["val_loss"][-20:])  # + (1 - max_val_acc) ** 2
+        # # cost = np.abs(1 - max_val_acc)
+        # # cost = (1 - max_val_acc) ** 2
         # if max_val_acc > train_acc_for_max_val_acc:
         #     cost += 0.25
 
-        # L1 = 1e-2 * (len(channels_idx) / len(all_channels))
-        L1 = 5e-5 * (len(channels_idx))
-        cost += L1
+        # L1 = 1e-3 * (len(channels_idx) / len(all_channels))
+        # # L1 = 5e-5 * (len(channels_idx))
+        # cost += L1
 
         # if not (0.75 <= train_acc_for_max_val_acc <= 1.00):
         #     cost += 0.75
+
+        cost = np.min(history.history["val_loss"][-5:])
+        cost += (1 - max_val_acc) ** 2
+        L1 = 1e-3 * (len(channels_idx) / len(all_channels))
+        cost += L1
+        if max_val_acc > train_acc_for_max_val_acc:
+            cost += 0.25
+        if not (0.75 <= train_acc_for_max_val_acc <= 1.00):
+            cost += 0.75
 
         return cost
 
@@ -382,7 +396,7 @@ class ModelOptimizer:
         )
 
         study = optuna.create_study(
-            direction="minimize", sampler=optuna.samplers.NSGAIIISampler()
+            direction="minimize", sampler=optuna.samplers.CmaEsSampler()
         )
         if enqueue_prev_best_trial:
             study.enqueue_trial(

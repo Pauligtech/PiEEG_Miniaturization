@@ -240,7 +240,7 @@ class ModelOptimizer:
         model = model_fn(**model_params)
         model.compile(
             loss="sparse_categorical_crossentropy",
-            optimizer="adam",
+            optimizer="rmsprop",
             metrics=[keras.metrics.SparseCategoricalAccuracy(name="accuracy")],
         )
 
@@ -253,20 +253,18 @@ class ModelOptimizer:
             shuffle=True,
             callbacks=[
                 GetBest(monitor="val_accuracy", verbose=1, mode="auto"),
-                keras.callbacks.EarlyStopping(
-                    monitor="val_loss", patience=75, restore_best_weights=True
-                ),
-                keras.callbacks.ReduceLROnPlateau(
-                    monitor="val_loss", patience=75, factor=0.5
-                ),
                 # keras.callbacks.EarlyStopping(
-                #     monitor="val_loss", patience=10, restore_best_weights=True
+                #     monitor="val_loss", patience=75, restore_best_weights=True
                 # ),
                 # keras.callbacks.ReduceLROnPlateau(
-                #     monitor="val_loss",
-                #     patience=5,
-                #     factor=0.1,
+                #     monitor="val_loss", patience=75, factor=0.5
                 # ),
+                keras.callbacks.EarlyStopping(
+                    monitor="val_loss", patience=10, restore_best_weights=True
+                ),
+                keras.callbacks.ReduceLROnPlateau(
+                    monitor="val_loss", patience=3, factor=0.1
+                ),
             ],
         )
 
@@ -336,13 +334,13 @@ class ModelOptimizer:
         # if not (0.75 <= train_acc_for_max_val_acc <= 1.00):
         #     cost += 0.75
 
-        cost = (1 - max_val_acc) ** 2
+        # cost = (1 - max_val_acc) ** 2
         L1 = 1e-3 * (len(channels_idx) / len(all_channels))
         cost += L1
 
         if max_val_acc > train_acc_for_max_val_acc:
             cost += 0.25
-        if not (0.75 <= train_acc_for_max_val_acc <= 1.00):
+        if not (0.75 <= train_acc_for_max_val_acc <= 0.99):
             cost += 0.75
 
         return cost
@@ -396,7 +394,7 @@ class ModelOptimizer:
         )
 
         study = optuna.create_study(
-            direction="minimize", sampler=optuna.samplers.NSGAIIISampler()
+            direction="minimize", sampler=optuna.samplers.NSGAIISampler()
         )
         if enqueue_prev_best_trial:
             study.enqueue_trial(

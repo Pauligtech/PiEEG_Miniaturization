@@ -244,6 +244,7 @@ class ModelOptimizer:
             metrics=[keras.metrics.SparseCategoricalAccuracy(name="accuracy")],
         )
 
+        training_start_time = time.time()
         history = model.fit(
             X_train,
             y_train,
@@ -267,6 +268,7 @@ class ModelOptimizer:
                 ),
             ],
         )
+        training_end_time = time.time()
 
         print("\n")
 
@@ -285,7 +287,10 @@ class ModelOptimizer:
         #     allow_pickle=True,
         # )
 
+        inference_start_time = time.time()
         test_eval = model.evaluate(X_test, y_test, batch_size=_BATCH_SIZE)
+        inference_end_time = time.time()
+        
         trial.set_user_attr(
             "trial_data",
             {
@@ -303,6 +308,12 @@ class ModelOptimizer:
                 "val_loss": history.history["val_loss"],
                 "test_loss": test_eval[0],
                 "data_path": f"./temp/{subjects}/{study_id}/data/",
+                "batch_size": batch_size,
+                "num_training_epochs": max_epochs,
+                "model_name": model_str,
+                "sfreq": sfreq,
+                "training_time": training_end_time - training_start_time,
+                "inference_time": inference_end_time - inference_start_time,
             },
         )
 
@@ -334,7 +345,7 @@ class ModelOptimizer:
         # if not (0.75 <= train_acc_for_max_val_acc <= 1.00):
         #     cost += 0.75
 
-        # cost = (1 - max_val_acc) ** 2
+        cost = (1 - max_val_acc) ** 2
         L1 = 1e-3 * (len(channels_idx) / len(all_channels))
         cost += L1
 
@@ -471,8 +482,8 @@ class ModelOptimizer:
 
             if not save_best_trial_only:
                 np.save(
-                    f"./temp/{subjects}/{study_id}/model/study_trials.npy",
-                    study.trials,
+                    f"./temp/{subjects}/{study_id}/model/study.npy",
+                    study,
                     allow_pickle=True,
                 )
             np.save(

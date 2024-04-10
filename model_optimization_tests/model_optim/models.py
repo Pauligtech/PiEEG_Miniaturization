@@ -67,10 +67,28 @@ def eeg_net(
     F2=16,
     norm_rate=0.25,
     dropoutType="Dropout",
+    **kwargs
 ):
     """
     From: https://github.com/vlawhern/arl-eegmodels/blob/master/EEGModels.py
     """
+
+    _CONV2D_1_UNITS_ = kwargs.get("conv2d_1_units", 8)
+    _CONV2D_1_KERNL_LENGTH_ = kwargs.get("conv2d_1_kernl_length", 64)
+    _POOL_1_SIZE_ = kwargs.get("pool_1_size", 4)
+
+    _CONV2D_DEPTH_MULTIPLIER_ = kwargs.get("conv2d_depth_multiplier", 2)
+
+    _CONV2D_2_UNITS_ = kwargs.get("conv2d_2_units", 16)
+    _CONV2D_2_KERNL_LENGTH_ = kwargs.get("conv2d_2_kernl_length", 16)
+    _POOL_2_SIZE_ = kwargs.get("pool_2_size", 8)
+
+    _L2_REG_1_ = kwargs.get("l2_reg_1", 0.01)
+    _L2_REG_2_ = kwargs.get("l2_reg_2", 0.01)
+    _L2_REG_3_ = kwargs.get("l2_reg_3", 0.01)
+    _L2_REG_4_ = kwargs.get("l2_reg_4", 0.01)
+    _DROPOUT_RATE_1_ = kwargs.get("dropout_rate_1", 0.5)
+    _DROPOUT_RATE_2_ = kwargs.get("dropout_rate_2", 0.5)
 
     dropoutType = {"Dropout": Dropout, "SpatialDropout2D": SpatialDropout2D}[
         dropoutType
@@ -80,35 +98,46 @@ def eeg_net(
 
     ##################################################################
     block1 = Conv2D(
-        F1,
-        (1, kernLength),
+        _CONV2D_1_UNITS_,
+        (1, _CONV2D_1_KERNL_LENGTH_),
         padding="same",
         input_shape=(channels, samples, 1),
         use_bias=False,
+        kernel_regularizer=keras.regularizers.L2(_L2_REG_1_),
     )(input1)
     block1 = BatchNormalization()(block1)
     block1 = DepthwiseConv2D(
         (channels, 1),
         use_bias=False,
-        depth_multiplier=D,
+        depth_multiplier=_CONV2D_DEPTH_MULTIPLIER_,
         depthwise_constraint=max_norm(1.0),
+        kernel_regularizer=keras.regularizers.L2(_L2_REG_2_),
     )(block1)
     block1 = BatchNormalization()(block1)
     block1 = Activation("elu")(block1)
-    block1 = AveragePooling2D((1, 4))(block1)
-    block1 = dropoutType(dropout_rate)(block1)
+    block1 = AveragePooling2D((1, _POOL_1_SIZE_))(block1)
+    block1 = dropoutType(_DROPOUT_RATE_1_)(block1)
 
-    block2 = SeparableConv2D(F2, (1, 16), use_bias=False, padding="same")(block1)
+    block2 = SeparableConv2D(
+        _CONV2D_2_UNITS_,
+        (1, _CONV2D_2_KERNL_LENGTH_),
+        use_bias=False,
+        padding="same",
+        kernel_regularizer=keras.regularizers.L2(_L2_REG_3_),
+    )(block1)
     block2 = BatchNormalization()(block2)
     block2 = Activation("elu")(block2)
-    block2 = AveragePooling2D((1, 8))(block2)
-    block2 = dropoutType(dropout_rate)(block2)
+    block2 = AveragePooling2D((1, _POOL_2_SIZE_))(block2)
+    block2 = dropoutType(_DROPOUT_RATE_2_)(block2)
 
     flatten = Flatten(name="flatten")(block2)
 
-    dense = Dense(nb_classes, name="dense", kernel_constraint=max_norm(norm_rate))(
-        flatten
-    )
+    dense = Dense(
+        nb_classes,
+        name="dense",
+        kernel_constraint=max_norm(norm_rate),
+        kernel_regularizer=keras.regularizers.L2(_L2_REG_4_),
+    )(flatten)
     softmax = Activation("softmax", name="softmax")(dense)
 
     return Model(inputs=input1, outputs=softmax)

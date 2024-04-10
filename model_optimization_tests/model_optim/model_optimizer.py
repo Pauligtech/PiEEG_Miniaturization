@@ -211,6 +211,34 @@ class ModelOptimizer:
                 "dropout_rate": trial.suggest_float("dropout_rate", 0.1, 0.9, step=0.1),
             }
 
+        if model_str == "eeg_net":
+            model_params = {
+                **model_params,
+                "conv2d_1_units": trial.suggest_int("conv2d_1_units", 8, 64, step=8),
+                "conv2d_1_kernl_length": trial.suggest_int(
+                    "conv2d_1_kernl_length", 16, 128, step=16
+                ),
+                "pool_1_size": trial.suggest_int("pool_1_size", 4, 16, step=4),
+                "conv2d_depth_multiplier": trial.suggest_int(
+                    "conv2d_depth_multiplier", 2, 8, step=2
+                ),
+                "conv2d_2_units": trial.suggest_int("conv2d_2_units", 8, 64, step=8),
+                "conv2d_2_kernl_length": trial.suggest_int(
+                    "conv2d_2_kernl_length", 16, 128, step=16
+                ),
+                "pool_2_size": trial.suggest_int("pool_2_size", 4, 16, step=4),
+                "l2_reg_1": trial.suggest_float("l2_reg_1", 0.001, 0.9),
+                "l2_reg_2": trial.suggest_float("l2_reg_2", 0.001, 0.9),
+                "l2_reg_3": trial.suggest_float("l2_reg_3", 0.001, 0.9),
+                "l2_reg_4": trial.suggest_float("l2_reg_4", 0.001, 0.9),
+                "dropout_rate_1": trial.suggest_float(
+                    "dropout_rate", 0.1, 0.9, step=0.1
+                ),
+                "dropout_rate_2": trial.suggest_float(
+                    "dropout_rate", 0.1, 0.9, step=0.1
+                ),
+            }
+
         if model_str == "lstm_cnn_net":
             model_params = {
                 **model_params,
@@ -290,7 +318,7 @@ class ModelOptimizer:
         inference_start_time = time.time()
         test_eval = model.evaluate(X_test, y_test, batch_size=_BATCH_SIZE)
         inference_end_time = time.time()
-        
+
         trial.set_user_attr(
             "trial_data",
             {
@@ -482,12 +510,12 @@ class ModelOptimizer:
 
             if not save_best_trial_only:
                 np.save(
-                    f"./temp/{subjects}/{study_id}/model/study.npy",
+                    f"./temp/{subjects}/{study_id}/model/{model_str}_study.npy",
                     study,
                     allow_pickle=True,
                 )
             np.save(
-                f"./temp/{subjects}/{study_id}/model/study_best_trial.npy",
+                f"./temp/{subjects}/{study_id}/model/{model_str}_study_best_trial.npy",
                 study.best_trial,
                 allow_pickle=True,
             )

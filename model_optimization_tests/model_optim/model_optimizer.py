@@ -96,6 +96,7 @@ class ModelOptimizer:
         self.all_channels = np.asarray(raw.info["ch_names"])[eeg_channels]
 
         self.original_sfreq = raw.info["sfreq"]
+        print(f"Original sfreq: {self.original_sfreq}")
 
         self.models = {
             "eeg_net": eeg_net,
@@ -375,9 +376,7 @@ class ModelOptimizer:
                 "batch_size": batch_size,
                 "num_training_epochs": max_epochs,
                 "model_name": model_str,
-                "sfreq": (
-                    sfreq if sfreq != None and sfreq != np.nan else self.original_sfreq
-                ),
+                "sfreq": (_SFREQ_ if _SFREQ_ != None else self.original_sfreq),
                 "training_time": training_end_time - training_start_time,
                 "inference_time": inference_end_time - inference_start_time,
             },
@@ -471,7 +470,7 @@ class ModelOptimizer:
         )
 
         study = optuna.create_study(
-            direction="minimize", sampler=optuna.samplers.NSGAIISampler()
+            direction="minimize", sampler=optuna.samplers.TPESampler()
         )
         if enqueue_prev_best_trial:
             study.enqueue_trial(

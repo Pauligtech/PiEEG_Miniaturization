@@ -230,6 +230,9 @@ class ModelOptimizer:
         _SFREQ_ = (
             sfreq if sfreq else trial.suggest_categorical("sfreq", [128, 256, None])
         )
+        print(
+            f"Using sfreq: {_SFREQ_}; sfreq is None: {sfreq == None}; self.original_sfreq: {self.original_sfreq}; sfreq={(_SFREQ_ if _SFREQ_ != None else self.original_sfreq)}"
+        )
         _TRAIN_SIZE_ = 0.8
         _TEST_SIZE_ = 1 - _TRAIN_SIZE_
         _BATCH_SIZE = (
@@ -376,7 +379,7 @@ class ModelOptimizer:
                 "batch_size": batch_size,
                 "num_training_epochs": max_epochs,
                 "model_name": model_str,
-                "sfreq": (_SFREQ_ if _SFREQ_ != None else self.original_sfreq),
+                "sfreq": (_SFREQ_ if not pd.isna(_SFREQ_) else self.original_sfreq),
                 "training_time": training_end_time - training_start_time,
                 "inference_time": inference_end_time - inference_start_time,
             },
@@ -416,8 +419,8 @@ class ModelOptimizer:
 
         if max_val_acc > train_acc_for_max_val_acc:
             cost += 0.25
-        if not (0.75 <= train_acc_for_max_val_acc <= 0.99):
-            cost += 0.75
+        # if not (0.75 <= train_acc_for_max_val_acc <= 0.99):
+        #     cost += 0.75
 
         return cost
 
@@ -635,7 +638,14 @@ class ModelOptimizer:
                 )
             )
             trial_metrics_dict["sfreq"].append(
-                trial.params_sfreq if hasattr(trial, "params_sfreq") else None
+                trial.params_sfreq
+                if hasattr(trial, "params_sfreq") and not pd.isna(trial.params_sfreq)
+                else (
+                    trial_user_attrs["sfreq"]
+                    if "sfreq" in trial_user_attrs
+                    and not pd.isna(trial_user_attrs["sfreq"])
+                    else None
+                )
             )
             trial_metrics_dict["batch_size"].append(
                 trial.params_batch_size if hasattr(trial, "params_batch_size") else None

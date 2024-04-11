@@ -3,6 +3,7 @@ from moabb.datasets import Cho2017
 """GigaDb Motor imagery dataset."""
 
 import logging
+import time
 
 import numpy as np
 from mne import create_info
@@ -15,6 +16,7 @@ from moabb.datasets.base import BaseDataset
 
 log = logging.getLogger(__name__)
 GIGA_URL = "https://ftp.cngb.org/pub/gigadb/pub/10.5524/100001_101000/100295/mat_data/"
+
 
 class NormCho2017(BaseDataset):
     """This is the Cho2017 dataset, but with the only the first 108 trials"""
@@ -68,21 +70,21 @@ class NormCho2017(BaseDataset):
             [eeg_data_l, np.zeros((eeg_data_l.shape[0], 500)), eeg_data_r]
         )
 
- ##############################  NEW CODE ########################################
-        count1 = 0
-        count2 = 0
-        # Cut the first 108 trials
-        for i in range(len(eeg_data[0])):
-            # Count the times the stim channel is 1 and 2
-            if eeg_data[-1][i] == 1:
-                count1 += 1
-                if count1 > 54:
-                    eeg_data[-1][i] = 0
+        # ##############################  NEW CODE ########################################
+        # count1 = 0
+        # count2 = 0
+        # # Cut the first 108 trials
+        # for i in range(len(eeg_data[0])):
+        #     # Count the times the stim channel is 1 and 2
+        #     if eeg_data[-1][i] == 1:
+        #         count1 += 1
+        #         if count1 > 54:
+        #             eeg_data[-1][i] = 0
 
-            elif eeg_data[-1][i] == 2:
-                count2 += 1
-                if count2 > 54:
-                    eeg_data[-1][i] = 0
+        #     elif eeg_data[-1][i] == 2:
+        #         count2 += 1
+        #         if count2 > 54:
+        #             eeg_data[-1][i] = 0
 
         # Check that it worked by printing the counts of 1 and 2
         # count the number of times 1 appears in the stim channel
@@ -97,22 +99,21 @@ class NormCho2017(BaseDataset):
         # print("Count1: ", postcount1)
         # print("Count2: ", postcount2)
 
-##################################################################################
+        ##################################################################################
 
+        # If count1 is
 
-            # If count1 is
-
-        log.warning(
-            "Trials demeaned and stacked with zero buffer to create "
-            "continuous data -- edge effects present"
-        )
+        # log.warning(
+        #     "Trials demeaned and stacked with zero buffer to create "
+        #     "continuous data -- edge effects present"
+        # )
 
         info = create_info(ch_names=ch_names, ch_types=ch_types, sfreq=data.srate)
         raw = RawArray(data=eeg_data, info=info, verbose=False)
         raw.set_montage(montage)
 
         return {"0": {"0": raw}}
-    
+
     def data_path(
         self, subject, path=None, force_update=False, update_path=None, verbose=None
     ):

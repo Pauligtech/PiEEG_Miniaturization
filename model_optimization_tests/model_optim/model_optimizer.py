@@ -74,15 +74,28 @@ class ModelOptimizer:
         dataset,
         model_name="",
         approach="single_subject",
+        save_folder="./temp",
         **kwargs,
     ):
+        assert approach in ["single_subject", "multi_subject"], "Invalid approach"
+        assert dataset, "Dataset is required"
+
         self.dataset = dataset
+        self.dataset_name = self.dataset.__class__.__name__
         self.model_name = model_name
         self.approach = approach
+        self.save_folder = save_folder
 
-        self.all_channels = self.dataset.get_data(subjects=[1])[1]["0"]["0"].info[
-            "ch_names"
-        ][:-1]
+        # self.all_channels = self.dataset.get_data(subjects=[1])[1]["0"]["0"].info[
+        #     "ch_names"
+        # ][:-1]
+        raw = self.dataset.get_data(subjects=[1])[1]["0"]["0"]
+        eeg_channels = mne.pick_types(
+            raw.info, meg=False, emg=False, eeg=True, stim=False, exclude=[]
+        )
+        self.all_channels = np.asarray(raw.info["ch_names"])[eeg_channels]
+
+        self.original_sfreq = raw.info["sfreq"]
 
         self.models = {
             "eeg_net": eeg_net,
@@ -113,6 +126,94 @@ class ModelOptimizer:
     def get_subjects(self):
         return self.dataset.subject_list
 
+    def get_model_params(self, trial, model_name, model_params={}):
+        match model_name:
+            case "eeg_net":
+                return {
+                    **model_params,
+                    "conv2d_1_units": trial.suggest_int(
+                        "conv2d_1_units", 8, 64, step=8
+                    ),
+                    "conv2d_1_kernl_length": trial.suggest_int(
+                        "conv2d_1_kernl_length", 16, 128, step=16
+                    ),
+                    "pool_1_size": trial.suggest_int("pool_1_size", 4, 16, step=4),
+                    "conv2d_depth_multiplier": trial.suggest_int(
+                        "conv2d_depth_multiplier", 2, 8, step=2
+                    ),
+                    "conv2d_2_units": trial.suggest_int(
+                        "conv2d_2_units", 8, 64, step=8
+                    ),
+                    "conv2d_2_kernl_length": trial.suggest_int(
+                        "conv2d_2_kernl_length", 16, 128, step=16
+                    ),
+                    "pool_2_size": trial.suggest_int("pool_2_size", 4, 16, step=4),
+                    "l2_reg_1": trial.suggest_float("l2_reg_1", 0.001, 0.9),
+                    "l2_reg_2": trial.suggest_float("l2_reg_2", 0.001, 0.9),
+                    "l2_reg_3": trial.suggest_float("l2_reg_3", 0.001, 0.9),
+                    "l2_reg_4": trial.suggest_float("l2_reg_4", 0.001, 0.9),
+                    "dropout_rate_1": trial.suggest_float(
+                        "dropout_rate", 0.1, 0.9, step=0.1
+                    ),
+                    "dropout_rate_2": trial.suggest_float(
+                        "dropout_rate", 0.1, 0.9, step=0.1
+                    ),
+                }
+            case "shallow_conv_net":
+                return {
+                    **model_params,
+                    "pool_size_d2": trial.suggest_int("pool_size_d2", 5, 95, step=5),
+                    "strides_d2": trial.suggest_int("strides_d2", 1, 31, step=1),
+                    "conv_filters_d2": trial.suggest_int(
+                        "conv_filters_d2", 5, 55, step=1
+                    ),
+                    "conv2d_1_units": trial.suggest_int(
+                        "conv2d_1_units", 10, 200, step=10
+                    ),
+                    "conv2d_2_units": trial.suggest_int(
+                        "conv2d_2_units", 10, 200, step=10
+                    ),
+                    "l2_reg_1": trial.suggest_float("l2_reg_1", 0.001, 0.9),
+                    "l2_reg_2": trial.suggest_float("l2_reg_2", 0.001, 0.9),
+                    "l2_reg_3": trial.suggest_float("l2_reg_3", 0.001, 0.9),
+                    "dropout_rate": trial.suggest_float(
+                        "dropout_rate", 0.1, 0.9, step=0.1
+                    ),
+                }
+            case "lstm_cnn_net":
+                return {
+                    **model_params,
+                    "conv1d_1_units": trial.suggest_int(
+                        "conv1d_1_units", 10, 200, step=10
+                    ),
+                    "conv1d_1_kernel_size": trial.suggest_int(
+                        "conv1d_1_kernel_size", 1, 100, step=1
+                    ),
+                    "conv1d_1_strides": trial.suggest_int(
+                        "conv1d_1_strides", 1, 50, step=1
+                    ),
+                    # "conv1d_1_maxpool_size": trial.suggest_int("conv1d_1_maxpool_size", 1, 100, step=2),
+                    "conv1d_1_maxpool_strides": trial.suggest_int(
+                        "conv1d_1_maxpool_strides", 1, 4, step=1
+                    ),
+                    "lstm_1_units": trial.suggest_int("lstm_1_units", 10, 200, step=10),
+                    "l2_reg_1": trial.suggest_float("l2_reg_1", 0.001, 0.8),
+                    "l2_reg_2": trial.suggest_float("l2_reg_2", 0.001, 0.8),
+                    "l2_reg_3": trial.suggest_float("l2_reg_3", 0.001, 0.8),
+                    "dropout_rate_1": trial.suggest_float(
+                        "dropout_rate_1", 0.1, 0.9, step=0.1
+                    ),
+                    "dropout_rate_2": trial.suggest_float(
+                        "dropout_rate_2", 0.1, 0.9, step=0.1
+                    ),
+                }
+            case "deep_conv_net":
+                return {**model_params}
+            case "lstm_net":
+                return {**model_params}
+            case _:
+                raise ValueError(f"Model {model_name} not found")
+
     def objective_fn(
         self,
         trial,
@@ -126,7 +227,7 @@ class ModelOptimizer:
         **kwargs,
     ):
         _SFREQ_ = (
-            sfreq if sfreq else trial.suggest_categorical("sfreq", [128, 256, 300])
+            sfreq if sfreq else trial.suggest_categorical("sfreq", [128, 256, None])
         )
         _TRAIN_SIZE_ = 0.8
         _TEST_SIZE_ = 1 - _TRAIN_SIZE_
@@ -196,79 +297,13 @@ class ModelOptimizer:
             "channels": _NUM_CHANNELS_,
             "samples": _NUM_SAMPLES_,
         }
-
-        if model_str == "shallow_conv_net":
-            model_params = {
-                **model_params,
-                "pool_size_d2": trial.suggest_int("pool_size_d2", 5, 95, step=5),
-                "strides_d2": trial.suggest_int("strides_d2", 1, 31, step=1),
-                "conv_filters_d2": trial.suggest_int("conv_filters_d2", 5, 55, step=1),
-                "conv2d_1_units": trial.suggest_int("conv2d_1_units", 10, 200, step=10),
-                "conv2d_2_units": trial.suggest_int("conv2d_2_units", 10, 200, step=10),
-                "l2_reg_1": trial.suggest_float("l2_reg_1", 0.001, 0.9),
-                "l2_reg_2": trial.suggest_float("l2_reg_2", 0.001, 0.9),
-                "l2_reg_3": trial.suggest_float("l2_reg_3", 0.001, 0.9),
-                "dropout_rate": trial.suggest_float("dropout_rate", 0.1, 0.9, step=0.1),
-            }
-
-        if model_str == "eeg_net":
-            model_params = {
-                **model_params,
-                "conv2d_1_units": trial.suggest_int("conv2d_1_units", 8, 64, step=8),
-                "conv2d_1_kernl_length": trial.suggest_int(
-                    "conv2d_1_kernl_length", 16, 128, step=16
-                ),
-                "pool_1_size": trial.suggest_int("pool_1_size", 4, 16, step=4),
-                "conv2d_depth_multiplier": trial.suggest_int(
-                    "conv2d_depth_multiplier", 2, 8, step=2
-                ),
-                "conv2d_2_units": trial.suggest_int("conv2d_2_units", 8, 64, step=8),
-                "conv2d_2_kernl_length": trial.suggest_int(
-                    "conv2d_2_kernl_length", 16, 128, step=16
-                ),
-                "pool_2_size": trial.suggest_int("pool_2_size", 4, 16, step=4),
-                "l2_reg_1": trial.suggest_float("l2_reg_1", 0.001, 0.9),
-                "l2_reg_2": trial.suggest_float("l2_reg_2", 0.001, 0.9),
-                "l2_reg_3": trial.suggest_float("l2_reg_3", 0.001, 0.9),
-                "l2_reg_4": trial.suggest_float("l2_reg_4", 0.001, 0.9),
-                "dropout_rate_1": trial.suggest_float(
-                    "dropout_rate", 0.1, 0.9, step=0.1
-                ),
-                "dropout_rate_2": trial.suggest_float(
-                    "dropout_rate", 0.1, 0.9, step=0.1
-                ),
-            }
-
-        if model_str == "lstm_cnn_net":
-            model_params = {
-                **model_params,
-                "conv1d_1_units": trial.suggest_int("conv1d_1_units", 10, 200, step=10),
-                "conv1d_1_kernel_size": trial.suggest_int(
-                    "conv1d_1_kernel_size", 1, 100, step=1
-                ),
-                "conv1d_1_strides": trial.suggest_int(
-                    "conv1d_1_strides", 1, 50, step=1
-                ),
-                # "conv1d_1_maxpool_size": trial.suggest_int("conv1d_1_maxpool_size", 1, 100, step=2),
-                "conv1d_1_maxpool_strides": trial.suggest_int(
-                    "conv1d_1_maxpool_strides", 1, 4, step=1
-                ),
-                "lstm_1_units": trial.suggest_int("lstm_1_units", 10, 200, step=10),
-                "l2_reg_1": trial.suggest_float("l2_reg_1", 0.001, 0.8),
-                "l2_reg_2": trial.suggest_float("l2_reg_2", 0.001, 0.8),
-                "l2_reg_3": trial.suggest_float("l2_reg_3", 0.001, 0.8),
-                "dropout_rate_1": trial.suggest_float(
-                    "dropout_rate_1", 0.1, 0.9, step=0.1
-                ),
-                "dropout_rate_2": trial.suggest_float(
-                    "dropout_rate_2", 0.1, 0.9, step=0.1
-                ),
-            }
+        model_params = self.get_model_params(trial, model_str, model_params)
 
         model = model_fn(**model_params)
         model.compile(
             loss="sparse_categorical_crossentropy",
-            optimizer="rmsprop",
+            # optimizer=keras.optimizers.Adam(learning_rate=1e-3),
+            optimizer=keras.optimizers.RMSprop(learning_rate=1e-3),
             metrics=[keras.metrics.SparseCategoricalAccuracy(name="accuracy")],
         )
 
@@ -281,6 +316,7 @@ class ModelOptimizer:
             validation_split=0.2,
             shuffle=True,
             callbacks=[
+                # GetBest(monitor="val_loss", verbose=1, mode="auto"),
                 GetBest(monitor="val_accuracy", verbose=1, mode="auto"),
                 # keras.callbacks.EarlyStopping(
                 #     monitor="val_loss", patience=75, restore_best_weights=True
@@ -304,13 +340,13 @@ class ModelOptimizer:
         # history.history["accuracy"] = history.history["sparse_categorical_accuracy"]
         # history.history["val_accuracy"] = history.history["val_sparse_categorical_accuracy"]
 
-        # Save X_test, y_test to ./temp/{subject}/{study_id}/data
+        # Save X_test, y_test to {self.save_folder}/{subject}/{study_id}/data
         # test_data = {
         #     "X_test": X_test,
         #     "y_test": y_test,
         # }
         # np.save(
-        #     f"./temp/{subjects if not using_all_subjects else '[]'}/{study_id}/data/test_data_{trial.number}.npy",
+        #     f"{self.save_folder}/{subjects if not using_all_subjects else '[]'}/{study_id}/data/test_data_{trial.number}.npy",
         #     test_data,
         #     allow_pickle=True,
         # )
@@ -335,11 +371,13 @@ class ModelOptimizer:
                 "train_loss": history.history["loss"],
                 "val_loss": history.history["val_loss"],
                 "test_loss": test_eval[0],
-                "data_path": f"./temp/{subjects}/{study_id}/data/",
+                # "data_path": f"{self.save_folder}/{subjects}/{study_id}/data/",
                 "batch_size": batch_size,
                 "num_training_epochs": max_epochs,
                 "model_name": model_str,
-                "sfreq": sfreq,
+                "sfreq": (
+                    sfreq if sfreq != None and sfreq != np.nan else self.original_sfreq
+                ),
                 "training_time": training_end_time - training_start_time,
                 "inference_time": inference_end_time - inference_start_time,
             },
@@ -359,7 +397,7 @@ class ModelOptimizer:
         # # cost = np.min(history.history["val_loss"]) + (1 - max_val_acc) ** 2
         # # cost = np.abs(1 - max_val_acc)
         # cost = np.min(history.history["val_loss"][-5:]) + np.abs(1 - max_val_acc)
-        # # cost = np.min(history.history["val_loss"][-(max_epochs // 2) :])
+        # cost = np.min(history.history["val_loss"][-(max_epochs // 2) :])
         # # cost = np.min(history.history["val_loss"][-20:])  # + (1 - max_val_acc) ** 2
         # # cost = np.abs(1 - max_val_acc)
         # # cost = (1 - max_val_acc) ** 2
@@ -480,14 +518,13 @@ class ModelOptimizer:
         model_str = model_name if model_name != None else self.model_name
 
         if replace_previous_study_for_subjects:
-            # Remove ./temp/{subjects} if it exists
-            if os.path.exists(f"./temp/{subjects}"):
-                shutil.rmtree(f"./temp/{subjects}")
+            # Remove {self.save_folder}/{subjects} if it exists
+            if os.path.exists(f"{self.save_folder}/{self.dataset_name}/{subjects}"):
+                shutil.rmtree(f"{self.save_folder}/{self.dataset_name}/{subjects}")
 
         # Make temp/{study_id}/[data,model,config] if it does not exist
         for path in [
-            f"./temp/{subjects}/{study_id}/data",
-            f"./temp/{subjects}/{study_id}/model",
+            f"{self.save_folder}/{self.dataset_name}/{subjects}/{study_id}/model",
         ]:
             if not os.path.exists(path):
                 os.makedirs(path)
@@ -510,19 +547,19 @@ class ModelOptimizer:
 
             if not save_best_trial_only:
                 np.save(
-                    f"./temp/{subjects}/{study_id}/model/{model_str}_study.npy",
+                    f"{self.save_folder}/{self.dataset_name}/{subjects}/{study_id}/model/{model_str}_study.npy",
                     study,
                     allow_pickle=True,
                 )
             np.save(
-                f"./temp/{subjects}/{study_id}/model/{model_str}_study_best_trial.npy",
+                f"{self.save_folder}/{self.dataset_name}/{subjects}/{study_id}/model/{model_str}_study_best_trial.npy",
                 study.best_trial,
                 allow_pickle=True,
             )
 
             # Clean up
-            # Delete all ./temp/**/** that contain no files
-            # for root, dirs, files in os.walk("./temp"):
+            # Delete all {self.save_folder}/**/** that contain no files
+            # for root, dirs, files in os.walk("{self.save_folder}"):
             #     if not files and not dirs:
             #         shutil.rmtree(root)
 
@@ -620,7 +657,7 @@ class ModelOptimizer:
         if action == "remove_all_but_best_trial_data":
             if best_study_id == None:
                 subjects_best_trials = glob.glob(
-                    f"./temp/{subjects_glob_str}/*/model/study_best_trial.npy"
+                    f"{self.save_folder}/{subjects_glob_str}/*/model/study_best_trial.npy"
                 )
                 rpprint(subjects_best_trials)
                 if len(subjects_best_trials) > 0:
@@ -630,14 +667,14 @@ class ModelOptimizer:
                 best_study_id = subjects_best_trials[0].split("/")[-3]
             if best_trial_id == None:
                 best_trial = np.load(
-                    f"./temp/{subjects}/{best_study_id}/model/study_best_trial.npy",
+                    f"{self.save_folder}/{subjects}/{best_study_id}/model/study_best_trial.npy",
                     allow_pickle=True,
                 )
                 best_trial_id = best_trial.item().number
             else:
                 best_trial = (
                     np.load(
-                        f"./temp/{subjects}/{best_study_id}/model/study_trials.npy",
+                        f"{self.save_folder}/{subjects}/{best_study_id}/model/study_trials.npy",
                         allow_pickle=True,
                     )
                     .item()
@@ -646,7 +683,7 @@ class ModelOptimizer:
                 best_trial_id = best_trial.number
             # Remove all test_data_[trial_id].npy files except for the best_trial_id
             for file in glob.glob(
-                f"./temp/{subjects_glob_str}/{best_study_id}/data/test_data_*.npy"
+                f"{self.save_folder}/{subjects_glob_str}/{best_study_id}/data/test_data_*.npy"
             ):
                 if int(file.split("_")[-1].split(".")[0]) != best_trial_id:
                     os.remove(file)

@@ -552,9 +552,21 @@ class ModelOptimizer:
         model_str = model_name if model_name != None else self.model_name
 
         if replace_previous_study_for_subjects:
+            subjects_glob_str = "[[]" + str(subjects).strip("[]") + "[]]"
+            extant_paths = glob.glob(
+                f"{self.save_folder}/{self.dataset_name}/{subjects_glob_str}/**/model/{model_str}_*.npy"
+            )
+            if len(extant_paths) > 0:
+                for path in extant_paths:
+                    print(f"Found previous study in {path}, removing...")
+                    try:
+                        shutil.rmtree(os.path.dirname(path))
+                    except:
+                        pass
+                    # os.remove(path)
             # Remove {self.save_folder}/{subjects} if it exists
-            if os.path.exists(f"{self.save_folder}/{self.dataset_name}/{subjects}"):
-                shutil.rmtree(f"{self.save_folder}/{self.dataset_name}/{subjects}")
+            # if os.path.exists(f"{self.save_folder}/{self.dataset_name}/{subjects}"):
+            #     shutil.rmtree(f"{self.save_folder}/{self.dataset_name}/{subjects}")
 
         # Make temp/{study_id}/[data,model,config] if it does not exist
         for path in [
@@ -601,8 +613,10 @@ class ModelOptimizer:
 
         return study
 
-    def get_study_metrics(self, study):
+    def get_study_metrics(self, study, **kwargs):
         study = study if study != None else self.latest_study
+        default_model_name = kwargs.get("default_model_name", None)
+        given_subjects = kwargs.get("subjects", None)
 
         trial_metrics_dict = {
             "train_acc": [],
@@ -620,9 +634,20 @@ class ModelOptimizer:
             "model_name": [],
             "subjects": [],
         }
-        for i, trial in enumerate(study.trials_dataframe().itertuples()):
-            trial_user_attrs = trial.user_attrs_trial_data
-            # rprint(trial_user_attrs.keys())
+        iterator = None
+        match (type(study)):
+            case optuna.study.Study:
+                iterator = enumerate(study.trials_dataframe().itertuples())
+            case optuna.trial.FrozenTrial:
+                iterator = enumerate([study])
+            case _:
+                raise ValueError("Invalid study type")
+        for i, trial in iterator:
+            trial_user_attrs = (
+                trial.user_attrs_trial_data
+                if hasattr(trial, "user_attrs_trial_data")
+                else trial.user_attrs["trial_data"]
+            )
             trial_metrics_dict["scores"].append(trial.value)
             trial_metrics_dict["train_acc"].append(
                 np.max(trial_user_attrs["train_accuracy"])
@@ -691,7 +716,7 @@ class ModelOptimizer:
                 else (
                     trial_user_attrs["model_name"]
                     if "model_name" in trial_user_attrs
-                    else None
+                    else default_model_name
                 )
             )
             trial_metrics_dict["subjects"].append(
@@ -700,7 +725,7 @@ class ModelOptimizer:
                 else (
                     trial_user_attrs["subjects"]
                     if "subjects" in trial_user_attrs
-                    else None
+                    else given_subjects
                 )
             )
         trial_metrics_df = pd.DataFrame(trial_metrics_dict)

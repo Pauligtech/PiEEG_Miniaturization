@@ -617,6 +617,7 @@ class ModelOptimizer:
         study = study if study != None else self.latest_study
         default_model_name = kwargs.get("default_model_name", None)
         given_subjects = kwargs.get("subjects", None)
+        file_path = kwargs.get("file_path", None)
 
         trial_metrics_dict = {
             "train_acc": [],
@@ -633,6 +634,7 @@ class ModelOptimizer:
             "batch_size": [],
             "model_name": [],
             "subjects": [],
+            "file_path": [],
         }
         iterator = None
         match (type(study)):
@@ -728,6 +730,7 @@ class ModelOptimizer:
                     else given_subjects
                 )
             )
+            trial_metrics_dict["file_path"].append(file_path)
         trial_metrics_df = pd.DataFrame(trial_metrics_dict)
 
         return trial_metrics_df

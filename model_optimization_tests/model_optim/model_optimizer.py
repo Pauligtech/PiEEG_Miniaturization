@@ -67,6 +67,9 @@ from .models import (
 )
 from .callbacks import GetBest
 
+tf.random.set_seed(42)
+np.random.seed(42)
+
 
 class ModelOptimizer:
     def __init__(
@@ -208,9 +211,32 @@ class ModelOptimizer:
                         "dropout_rate_2", 0.1, 0.9, step=0.1
                     ),
                 }
-            case "deep_conv_net":
-                return {**model_params}
             case "lstm_net":
+                return {
+                    **model_params,
+                    "lstm_1_units": trial.suggest_int("lstm_1_units", 10, 60, step=10),
+                    "lstm_1_l2_reg": trial.suggest_float("lstm_1_l2_reg", 0.001, 0.9),
+                    "lstm_1_dropout": trial.suggest_float(
+                        "lstm_1_dropout", 0.1, 0.9, step=0.1
+                    ),
+                    "lstm_2_units": trial.suggest_int("lstm_2_units", 10, 60, step=10),
+                    "lstm_2_l2_reg": trial.suggest_float("lstm_2_l2_reg", 0.001, 0.9),
+                    "lstm_2_dropout": trial.suggest_float(
+                        "lstm_2_dropout", 0.1, 0.9, step=0.1
+                    ),
+                    "lstm_3_units": trial.suggest_int("lstm_3_units", 10, 60, step=10),
+                    "lstm_3_l2_reg": trial.suggest_float("lstm_3_l2_reg", 0.001, 0.9),
+                    "lstm_3_dropout": trial.suggest_float(
+                        "lstm_3_dropout", 0.1, 0.9, step=0.1
+                    ),
+                    "lstm_dense_units": trial.suggest_int(
+                        "lstm_dense_units", 10, 60, step=10
+                    ),
+                    "lstm_dense_l2_reg": trial.suggest_float(
+                        "lstm_dense_l2_reg", 0.001, 0.9
+                    ),
+                }
+            case "deep_conv_net":
                 return {**model_params}
             case _:
                 raise ValueError(f"Model {model_name} not found")
@@ -329,10 +355,16 @@ class ModelOptimizer:
                 #     monitor="val_loss", patience=75, factor=0.5
                 # ),
                 keras.callbacks.EarlyStopping(
-                    monitor="val_loss", patience=10, restore_best_weights=True
+                    monitor="val_loss",
+                    patience=40,
+                    restore_best_weights=True,
+                    # monitor="val_loss", patience=10, restore_best_weights=True
                 ),
                 keras.callbacks.ReduceLROnPlateau(
-                    monitor="val_loss", patience=3, factor=0.1
+                    monitor="val_loss",
+                    patience=10,
+                    factor=0.1,
+                    # monitor="val_loss", patience=3, factor=0.1
                 ),
             ],
         )
@@ -585,9 +617,12 @@ class ModelOptimizer:
             "channels_selected": [],
             "sfreq": [],
             "batch_size": [],
+            "model_name": [],
+            "subjects": [],
         }
         for i, trial in enumerate(study.trials_dataframe().itertuples()):
             trial_user_attrs = trial.user_attrs_trial_data
+            # rprint(trial_user_attrs.keys())
             trial_metrics_dict["scores"].append(trial.value)
             trial_metrics_dict["train_acc"].append(
                 np.max(trial_user_attrs["train_accuracy"])
@@ -649,6 +684,24 @@ class ModelOptimizer:
             )
             trial_metrics_dict["batch_size"].append(
                 trial.params_batch_size if hasattr(trial, "params_batch_size") else None
+            )
+            trial_metrics_dict["model_name"].append(
+                trial.params_model_name
+                if hasattr(trial, "params_model_name")
+                else (
+                    trial_user_attrs["model_name"]
+                    if "model_name" in trial_user_attrs
+                    else None
+                )
+            )
+            trial_metrics_dict["subjects"].append(
+                trial.params_subjects
+                if hasattr(trial, "params_subjects")
+                else (
+                    trial_user_attrs["subjects"]
+                    if "subjects" in trial_user_attrs
+                    else None
+                )
             )
         trial_metrics_df = pd.DataFrame(trial_metrics_dict)
 

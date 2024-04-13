@@ -250,20 +250,61 @@ def shallow_conv_net(
     return Model(inputs=input_main, outputs=softmax)
 
 
-def lstm_net(nb_classes=NUM_CLASSES, channels=NUM_CHANNELS, samples=NUM_SAMPLES):
+def lstm_net(
+    nb_classes=NUM_CLASSES, channels=NUM_CHANNELS, samples=NUM_SAMPLES, **kwargs
+):
+
+    _LSTM_1_UNITS_ = kwargs.get("lstm_1_units", 40)  # 40
+    _LSTM_1_L2_REG_ = kwargs.get("lstm_1_l2_reg", 0.01)  # 0.01
+    _LSTM_1_DROPOUT_ = kwargs.get("lstm_1_dropout", 0.5)  # 0.5
+    _LSTM_2_UNITS_ = kwargs.get("lstm_2_units", 40)  # 40
+    _LSTM_2_L2_REG_ = kwargs.get("lstm_2_l2_reg", 0.01)  # 0.01
+    _LSTM_2_DROPOUT_ = kwargs.get("lstm_2_dropout", 0.5)  # 0.5
+    _LSTM_3_UNITS_ = kwargs.get("lstm_3_units", 40)  # 40
+    _LSTM_3_L2_REG_ = kwargs.get("lstm_3_l2_reg", 0.01)  # 0.01
+    _LSTM_3_DROPOUT_ = kwargs.get("lstm_3_dropout", 0.5)  # 0.5
+    _LSTM_DENSE_UNITS_ = kwargs.get("lstm_dense_units", 50)  # 50
+    _LSTM_DENSE_L2_REG_ = kwargs.get("lstm_dense_l2_reg", 0.01)  # 0.01
+
     model = Sequential()
     model.add(Input(shape=(samples, channels)))
-    model.add(LSTM(40, return_sequences=True, stateful=False))
+    model.add(
+        LSTM(
+            _LSTM_1_UNITS_,
+            return_sequences=True,
+            stateful=False,
+            kernel_regularizer=keras.regularizers.L2(_LSTM_1_L2_REG_),
+        )
+    )
     # model.add(LSTM(40, return_sequences=True, stateful=False, batch_input_shape=(batch_size, timesteps, data_dim)))
-    model.add(Dropout(0.5))
+    model.add(Dropout(_LSTM_1_DROPOUT_))
     model.add(BatchNormalization())
-    model.add(LSTM(40, return_sequences=True, stateful=False))
-    model.add(Dropout(0.5))
+    model.add(
+        LSTM(
+            _LSTM_2_UNITS_,
+            return_sequences=True,
+            stateful=False,
+            kernel_regularizer=keras.regularizers.L2(_LSTM_2_L2_REG_),
+        )
+    )
+    model.add(Dropout(_LSTM_2_DROPOUT_))
     model.add(BatchNormalization())
-    model.add(LSTM(40, stateful=False))
-    model.add(Dropout(0.5))
+    model.add(
+        LSTM(
+            _LSTM_3_UNITS_,
+            stateful=False,
+            kernel_regularizer=keras.regularizers.L2(_LSTM_3_L2_REG_),
+        )
+    )
+    model.add(Dropout(_LSTM_3_DROPOUT_))
     # model.add(TimeDistributed(Dense(T_train)))
-    model.add(Dense(50, activation="softmax"))
+    model.add(
+        Dense(
+            _LSTM_DENSE_UNITS_,
+            activation="softmax",
+            kernel_regularizer=keras.regularizers.L2(_LSTM_DENSE_L2_REG_),
+        )
+    )
     model.add(Dense(nb_classes, activation="softmax"))
 
     return model

@@ -644,8 +644,6 @@ class ModelOptimizer:
                 iterator = enumerate([study])
             case _:
                 raise ValueError("Invalid study type")
-
-        print(trial.user_attrs_trial_data["train_accuracy"])
         for i, trial in iterator:
             trial_user_attrs = (
                 trial.user_attrs_trial_data

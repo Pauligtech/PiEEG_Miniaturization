@@ -1,6 +1,6 @@
 <!-- LTeX:enabled=false -->
 
-# moabb_model_optimization
+# PiEEG_Miniaturization
 
 ## Installation
 

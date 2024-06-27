@@ -2,7 +2,8 @@
 
 # PiEEG_Miniaturization
 
-<img width="729" alt="screenshot image" src="https://github.com/Pauligtech/PiEEG_Miniaturization/assets/24925772/85e40e90-305b-4abd-a0c8-cc4c0261b6bc">
+<img width="813" alt="screenshot image" src="https://github.com/Pauligtech/PiEEG_Miniaturization/assets/24925772/faf6a71c-0978-4225-95a6-339296f82821">
+
 
 ## Installation
 
